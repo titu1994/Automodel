@@ -1,0 +1,22 @@
+Create a bash command to launch this codebase inside container 
+
+#!/bin/bash
+
+# https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo-automodel
+
+cd /home/smajumdar/PycharmProjects/Automodel-som
+
+docker run --gpus all --rm -it \
+  --network host --ipc host \
+  --ulimit memlock=-1 --ulimit stack=67108864 --shm-size=24g \
+  --privileged --pid=host \
+  -v "$PWD:$PWD" \
+  -v "/home/smajumdar/PycharmProjects/Automodel-som:/opt/Automodel" \
+  -v "/media/smajumdar/data/huggingface:/hf" \
+  -e HF_HOME="/hf" \
+  -e HF_DATASETS_CACHE="/hf/datasets" \
+  -e UV_CACHE_DIR="$PWD/.cache/uv" \
+  -e WANDB_API_KEY=$WANDB_API_KEY \
+  -e HF_TOKEN=$HF_TOKEN \
+  -w "$PWD" \
+  nvcr.io/nvidia/nemo-automodel:26.02.nemotron_3_super bash
