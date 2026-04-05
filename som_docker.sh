@@ -1,5 +1,3 @@
-Create a bash command to launch this codebase inside container 
-
 #!/bin/bash
 
 # https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo-automodel
@@ -11,8 +9,10 @@ docker run --gpus all --rm -it \
   --ulimit memlock=-1 --ulimit stack=67108864 --shm-size=24g \
   --privileged --pid=host \
   -v "$PWD:$PWD" \
-  -v "/home/smajumdar/PycharmProjects/Automodel-som:/opt/Automodel" \
+  -v "$PWD:/opt/Automodel" \
   -v "/media/smajumdar/data/huggingface:/hf" \
+  -v "/media/smajumdar/data/Datasets:/data" \
+  -v "/media/smajumdar/data/Experiments:/checkpoints" \
   -e HF_HOME="/hf" \
   -e HF_DATASETS_CACHE="/hf/datasets" \
   -e UV_CACHE_DIR="$PWD/.cache/uv" \
