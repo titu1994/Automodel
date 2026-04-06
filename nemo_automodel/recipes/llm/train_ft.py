@@ -561,17 +561,34 @@ def build_dataloader(
             if "shuffle" in cfg_dl:
                 del cfg_dl.shuffle
 
-            dist_sampler_kwargs = {
-                "num_replicas": dp_world_size,
-                "rank": dp_rank,
-                "shuffle": shuffle,
-            }
-            sampler = StatefulDistributedSampler(
-                ds,
-                seed=seed,
-                drop_last=True,
-                **dist_sampler_kwargs,
-            )
+            group_by_length = cfg_dl.get("group_by_length", False)
+            if "group_by_length" in cfg_dl:
+                del cfg_dl.group_by_length
+
+            if group_by_length:
+                from nemo_automodel.components.datasets.llm.length_grouped_sampler import (
+                    LengthGroupedSampler as LLMLengthGroupedSampler,
+                )
+
+                sampler = LLMLengthGroupedSampler(
+                    dataset=ds,
+                    batch_size=local_batch_size,
+                    seed=seed,
+                    num_replicas=dp_world_size,
+                    rank=dp_rank,
+                )
+            else:
+                dist_sampler_kwargs = {
+                    "num_replicas": dp_world_size,
+                    "rank": dp_rank,
+                    "shuffle": shuffle,
+                }
+                sampler = StatefulDistributedSampler(
+                    ds,
+                    seed=seed,
+                    drop_last=True,
+                    **dist_sampler_kwargs,
+                )
             dl_kwargs = {"sampler": sampler, "batch_size": local_batch_size}
             if pp_enabled:
                 dl_kwargs["drop_last"] = True
@@ -1110,6 +1127,16 @@ class TrainFinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 enable_load_balance_tracking(mp)
 
         self.mfu_calculator = AutoMFU.from_config(self.model_parts[0])
+
+        # NEFTune: noisy embeddings for improved instruction fine-tuning
+        neftune_cfg = self.cfg.get("neftune", None)
+        self.neftune = None
+        if neftune_cfg is not None:
+            from nemo_automodel.components.training.neftune import NEFTune
+
+            noise_alpha = neftune_cfg.get("noise_alpha", 5.0) if hasattr(neftune_cfg, "get") else neftune_cfg
+            self.neftune = NEFTune(noise_alpha=float(noise_alpha))
+            self.neftune.activate(self.model_parts[0])
 
         restore_from = self.cfg.get("checkpoint.restore_from", None)
         # Initialize JSONL loggers

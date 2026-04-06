@@ -293,6 +293,25 @@ class ChatDataset(Dataset):
         unshifted: bool = False,
         skip_invalid_samples: bool = False,
     ) -> None:
+        """Load OpenAI-format chat rows and tokenize via the chat template.
+
+        Args:
+            path_or_dataset_id: Hugging Face dataset id, local JSON/JSONL path(s), Parquet file, or Parquet directory.
+            tokenizer: Tokenizer with chat template support (required).
+            split: Dataset split or slice (e.g. ``train``, ``train[1024:]``).
+            name: Optional Hub subset / config name.
+            seq_length: Maximum sequence length for padding and truncation in formatting.
+            padding: Padding mode for ``format_chat_template``.
+            truncation: Truncation mode for ``format_chat_template``.
+            start_of_turn_token: Optional token marking assistant turns for answer-only loss.
+            chat_template: Optional Jinja template string overriding ``tokenizer.chat_template``.
+            shuffle_seed: If set, shuffles Hub/Parquet data before applying a split slice.
+            mask_reasoning_content: If ``True``, exclude rendered reasoning traces from the loss mask.
+            unshifted: Passed through to ``format_chat_template``.
+            skip_invalid_samples: If ``True``, skip malformed JSONL lines when reading local files (warning logs
+                include skip counts). If ``False``, a bad line raises. Does not skip invalid structured rows after
+                load; those still raise when a sample is accessed.
+        """
         if tokenizer is None:
             raise ValueError("Tokenizer is required")
 
@@ -319,26 +338,6 @@ class ChatDataset(Dataset):
             shuffle_seed=shuffle_seed,
             skip_invalid_samples=skip_invalid_samples,
         )
-
-        if self.skip_invalid_samples:
-            filtered_rows: List[Dict[str, Any]] = []
-            skipped_rows = 0
-            for row in self.dataset:
-                try:
-                    messages = row.get("messages")
-                    if not isinstance(messages, list):
-                        raise ValueError("Each sample must contain a `messages` list in OpenAI format")
-                    _normalize_messages(messages)
-                    filtered_rows.append(row)
-                except Exception:
-                    skipped_rows += 1
-
-            if skipped_rows:
-                logging.getLogger(__name__).warning(
-                    "Skipped %d invalid chat sample(s) after loading (skip_invalid_samples=True)",
-                    skipped_rows,
-                )
-            self.dataset = filtered_rows
 
         # Ensure pad token presence for downstream padding
         eos_token_id = getattr(self.tokenizer, "eos_token_id", 0)
